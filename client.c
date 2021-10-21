@@ -10,15 +10,7 @@
 #include <sys/ioctl.h>
 
 
-#define SCORED 2
-#define NOT_SCORED 1
 #define TIMEOUT 60
-
-typedef struct {
-    int** v_lines;
-    int** h_lines;
-    int** squares;
-} Game;
 
 void alarm_handler(int signum) {
     write(1, "10s passed without input!\n", 26);
@@ -40,150 +32,15 @@ char* itoa(int num, char* str) {
     return str;
 }
 
-void flush() {
-    int c;
-    char t[2];
-    ioctl(0, FIONREAD, &c);
-    while(c-- > 0)
-        read(0,t,1);
-}
-
-void initialize_gb(Game* g, int player_count) {
-    int n = player_count + 1;
-    g->h_lines = malloc(n * sizeof(int*));
-    g->v_lines = malloc((n - 1) * sizeof(int*));
-    g->squares = malloc(n * sizeof(int*));
-
-    for (int i = 0; i < n; i++) {
-        g->h_lines[i] = malloc((n - 1) * sizeof(int));
-        g->squares[i] = malloc(n * sizeof(int));
-        if (i != n - 1)
-            g->v_lines[i] = malloc(n * sizeof(int));
-
-        for (int j = 0; j < n; j++) {
-            g->squares[i][j] = -1;
-
-            if (j != n - 1)
-                g->h_lines[i][j] = 0;
-
-            if (i != n - 1)
-                g->v_lines[i][j] = 0;
-        }
-    }
-}
-
-void draw_map(Game* g, int plyaer_count) {
-    char temp[10] = {0};
-    write(1, "\n", 1);
-	for (int i = 0; i < plyaer_count + 1; i++) {
-		for (int j = 0; j < plyaer_count + 1; j++) {
-			write(1, "*", 1);
-			if (j == plyaer_count)
-				break;
-			if (g->h_lines[i][j])
-				write(1, "--", 2);
-			else
-				write(1, "  ", 2);
-		}
-		write(1, "\n", 1);
-		if (i == plyaer_count) 
-			break;
-		for (int j = 0; j < plyaer_count + 1; j++) {
-			if (g->v_lines[i][j])
-				write(1, "|", 1);
-			else
-				write(1, " ", 1);
-			if (g->squares[i][j] != -1) {
-                itoa(g->squares[i][j], temp);
-				write(1, temp, strlen(temp)); 
-                write(1, " ", 1);
-            }
-			else
-				write(1, "  ", 2);
-		}
-		write(1, "\n", 1);
-	}
-}
-
-int fill_board(Game *g, int id, int v, int i, int j, int player_count) {
-    int has_scored = 0;
-    if (v) 
-        g->v_lines[i][j] = 1;
-    else
-        g->h_lines[i][j] = 1;
-
-    for (int i = 0; i < player_count; i++) {
-		for (int j = 0; j < player_count; j++) {
-			if (g->h_lines[i][j] && g->h_lines[i + 1][j] && g->v_lines[i][j] && g->v_lines[i][j + 1] && g->squares[i][j] == -1) {
-				g->squares[i][j] = id; 
-                has_scored = 1;
-			}
-		}
-	}
-    
-    return has_scored;
-}
-
-// returns next turn
-int proccess_input(Game *g, char* input, int player_count) {
-    int id, v, i, j, has_scored;
-    char* tok = strtok(input, "#");
-    id = atoi(tok);
-    tok = strtok(NULL, "#");
-    v = atoi(tok);
-    if (v == TIMEOUT) {
-        return TIMEOUT;
-    }
-    tok = strtok(NULL, "#");
-    i = atoi(tok);
-    tok = strtok(NULL, "#");
-    j = atoi(tok);
-
-
-    has_scored = fill_board(g, id, v, i, j, player_count);
-    
-    if (has_scored) {
-        return SCORED;
-    }
-
-    return NOT_SCORED;
-}
-
-
-int is_game_finished(Game* g, int* winner, int player_count) {
-    int count = 0, max = 0;
-    int* scores = malloc(player_count * sizeof(int));
-
-    for (int i = 0; i < player_count; i++)
-        scores[i] = 0;
-
-	for (int i = 0; i < player_count; i++) {
-		for (int j = 0; j < player_count; j++) {
-			if (g->squares[i][j] != -1) {
-				count++;
-                scores[g->squares[i][j]]++;
-			}
-		}
-	}
-
-    if (count == player_count * player_count) {
-        for (int i = 0; i < player_count; i++)
-            if(scores[i] > max)
-                *winner = i;
-        
-        return 1;
-    }
-
-    return 0;
-}
 
 int main(int argc, char const *argv[]) {
-    int sock, broadcast = 1, opt = 1, group, port, id, turn = 0, prev_turn = 0, n, is_sent_question = 0;
+    int sock, broadcast = 1, opt = 1, group, port, id, turn = 0, n, is_sent_question_to = 0, len_ans = 0;
     char temp[100] = {0};
+    char qa[2048] = {0};
+    char first_ans[100] = {0};
+    char second_ans[100] = {0};
     char buffer[1024] = {0};
     struct sockaddr_in bc_address, server_address;
-    char turn_info[128];
-    Game game;
 
     siginterrupt(SIGALRM, 1);
     signal(SIGALRM, alarm_handler); 
@@ -224,69 +81,111 @@ int main(int argc, char const *argv[]) {
     write(1, "!\n", 2);
     close(sock);
 
-    // // UDP Run Game
     sock = socket(AF_INET, SOCK_DGRAM, 0);
     setsockopt(sock, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast));
     setsockopt(sock, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt));
 
     bc_address.sin_family = AF_INET; 
     bc_address.sin_port = htons(port); 
-    bc_address.sin_addr.s_addr = INADDR_ANY;
+    bc_address.sin_addr.s_addr = inet_addr("255.255.255.255");
 
-    if(id != 0) {
-        bind(sock, (struct sockaddr *)&bc_address, sizeof(bc_address));
-    }
+    bind(sock, (struct sockaddr *)&bc_address, sizeof(bc_address));
+    
 
     char *hello = "Hello from client";
     char *helloFromServer = "Hello from server";
     socklen_t len;
     len = sizeof(bc_address);
 
-    // int v, i, j, winner=-1;
-    // initialize_gb(&game, player_count);
-    // turn = 0;
-    // write(1, "v indicates if the line is vertical or horizental\ni is row, j is column\n", 72);
-    // draw_map(&game, player_count);
+    int number_of_recv = 0;
 
     while(1) {
        if (id == 0) {
-           if(!is_sent_question) {
+           if(!is_sent_question_to) {
                 write(1, "Ask a question\n", 15);
-
-            
                 read(0, buffer, 1024);
+                strcat(qa, "$");
+                strcat(qa, strtok(buffer, "\n"));
+                strcat(buffer, "$");
+                strcat(buffer, itoa(id+1, temp));
+                strcat(buffer, "$");
                 sendto(sock, (const char *)buffer, strlen(buffer), 0, (const struct sockaddr *) &bc_address, sizeof(bc_address));
                 write(1, "Question sent to everyone.\n", 27);
-                is_sent_question = 1;
+                is_sent_question_to = 1;
            } else {
+               if(number_of_recv == 0){
+                   recv(sock, buffer, 1024, 0);
+                   number_of_recv++;
+                   continue;
+               }
                write(1, "Waiting for response...\n", 24);
-               recv(sock, buffer, 1024, 0);
-               write(1, "Response received!\n", 19);
-               write(1, buffer, 1024);
+               recv(sock, temp, 100, 0);
+               write(1, "Response received: ", 19);
+               char* q = strtok(temp, "$");
+               char* turn = strtok(NULL, "$");
+               int turn_int = atoi(turn);
+               if(len_ans == 0) {
+                   strcat(first_ans, temp);
+                   len_ans++;
+               } else if (len_ans == 1) {
+                   strcat(second_ans, temp);
+                   len_ans++;
+               }
+               write(1, temp, strlen(temp));
                write(1, " \n", 2);
+               if(turn_int == id + 3) {
+                   write(1, "Done!\n", 6);
+                   write(1, "Select best answer\n", 19);
+                   read(0, temp, 100);
+                   int choice = atoi(strtok(temp, "\n"));
+                   strcat(qa, " ");
+                   if (choice == 1) {
+                       strcat(qa, strtok(first_ans, "\n"));
+                   } else {
+                       strcat(qa, strtok(second_ans, "\n"));
+                   }
+                   sock = socket(AF_INET, SOCK_STREAM, 0);
+   
+                   server_address.sin_family = AF_INET; 
+                   server_address.sin_port = htons(atoi(argv[1])); 
+                   server_address.sin_addr.s_addr = inet_addr("127.0.0.1");
+
+                   connect(sock, (struct sockaddr *)&server_address, sizeof(server_address));
+                   write(1, qa, 2048);
+                   send(sock , qa , strlen(qa) , 0);
+                   close(sock);
+                   break;
+               }
            }
         } else {
-            //sendto(sock, (const char *)'\0', 0, 0, (const struct sockaddr *) &bc_address, sizeof(bc_address));
             recv(sock, buffer, 1024, 0);
-            write(1, buffer, 1024);
+            write(1, buffer, strlen(buffer));
             write(1, " \n", 2);
-            write(1, "Answer the question\n", 20);
-            write(1, "Timeout is ", 11);
-            itoa(TIMEOUT, temp);
-            write(1, temp, strlen(temp));
-            write(1, " \n", 2);
-            alarm(TIMEOUT);
-            read(0, buffer, 1024);
-            alarm(0);
-            sendto(sock, (const char *)buffer, strlen(buffer), 0, (const struct sockaddr *) &bc_address, sizeof(bc_address));
+            char* q = strtok(buffer, "$");
+            char* turn = strtok(NULL, "$");
+            int turn_int = atoi(turn);
+            if(turn_int == id) {
+                write(1, "Answer the question\n", 20);
+                write(1, "Timeout is ", 11);
+                itoa(TIMEOUT, temp);
+                write(1, temp, strlen(temp));
+                write(1, " \n", 2);
+                alarm(TIMEOUT);
+                read(0, buffer, 1024);
+                alarm(0);
+                strcat(buffer, "$");
+                strcat(buffer, itoa(id+1, temp));
+                strcat(buffer, "$");
+                sendto(sock, (const char *)buffer, strlen(buffer), 0, (const struct sockaddr *) &bc_address, sizeof(bc_address));
+                is_sent_question_to = 2;
+                break;
+            }
+            
         }
     }
 
-    // write(1, "\nGame Finished!\nWinner is Player ", 39);
-    // itoa(winner, temp);
-    // write(1, temp, strlen(temp));
-    // write(1, "!\n", 2);
-    // close(sock);
+    write(1, "\nThe end \n", 10);
+    close(sock);
 
     return 0;
 }

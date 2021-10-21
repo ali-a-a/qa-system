@@ -23,6 +23,7 @@ typedef struct {
     int len;
 } waiting_list;
 
+
 char* itoa(int num, char* str) {
     char digits[] = "0123456789";
     char temp[16];
@@ -160,6 +161,9 @@ int main(int argc, char const *argv[]) {
     write(1, port_str, strlen(port_str));
     write(1, "\nWaiting for players...\n", 24);
 
+    int file_fd;
+    file_fd = open("file.txt", O_APPEND | O_RDWR | O_CREAT);
+
 
     while(1) {
         slave_set = master_set;
@@ -175,15 +179,22 @@ int main(int argc, char const *argv[]) {
                     write(1, "New user connected\n", 19);
                 } else {
                     valread = recv(i , buffer, 1024, 0);
-                    int group = atoi(buffer);
-                    if(add_user(i, group, users_list, &users_list_index))
-                        send_port(group, users_list, users_list_index);
+                    if(buffer[0] == '$') {
+                        write(file_fd, buffer, strlen(buffer));
+                        write(file_fd, " \n", 2);
+                    } else {
+                        int group = atoi(buffer);
+                        if(add_user(i, group, users_list, &users_list_index))
+                            send_port(group, users_list, users_list_index);
+                    }
                     FD_CLR(i, &master_set);
                 }
             }
         }
 
     }
+
+    close(file_fd);
 
     return 0; 
 } 
