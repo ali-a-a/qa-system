@@ -10,11 +10,6 @@
 
 #define MAX_CAP 3
 
-// #define COMPUTER 1
-// #define ARCH 2
-// #define MECHANIC 3
-// #define ELECTRIC 4
-
 int list_len = 0;
 
 typedef struct {
@@ -49,7 +44,7 @@ int generate_random_port() {
     test_sock = socket(AF_INET, SOCK_DGRAM, 0);
     while(addr.sin_port == 0) {
         bind(test_sock, (struct sockaddr *)&addr, sizeof(addr));
-        int len = sizeof(addr);
+        socklen_t len = sizeof(addr);
         getsockname(test_sock, (struct sockaddr *)&addr, &len);
     }
     close(test_sock);
@@ -191,7 +186,6 @@ int main(int argc, char const *argv[]) {
                 }
             }
         }
-
     }
 
     close(file_fd);
