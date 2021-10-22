@@ -78,11 +78,12 @@ int handle_response(int sock, struct sockaddr_in server_address, int id, int mai
         strcat(second_ans, temp);
         len_ans++;
     }
-    write(1, temp, strlen(temp));
+    char* res = strtok(temp, "\n");
+    write(1, res, strlen(res));
     write(1, " \n", 2);
     if(is_all_answered(turn_int)) {
         write(1, "Done!\n", 6);
-        write(1, "Select best answer\n", 19);
+        write(1, "Select best answer, #1 or #2\n", 29);
         read(0, temp, 100);
         int choice = atoi(strtok(temp, "\n"));
         strcat(qa, " ");
@@ -108,12 +109,13 @@ int handle_response(int sock, struct sockaddr_in server_address, int id, int mai
 
 int handle_answer(int sock, struct sockaddr_in bc_address, int id) {
     recv(sock, buffer, 1024, 0);
-    write(1, buffer, strlen(buffer));
-    write(1, " \n", 2);
     char* q = strtok(buffer, "$");
+    write(1, q, strlen(q));
+    write(1, " \n", 2);
     char* turn = strtok(NULL, "$");
     int turn_int = atoi(turn);
     if(turn_int == id) {
+        memset(buffer, 0, sizeof buffer);
         write(1, "Answer the question\n", 20);
         write(1, "Timeout is ", 11);
         itoa(TIMEOUT, temp);
@@ -173,7 +175,7 @@ int main(int argc, char const *argv[]) {
     id = atoi(id_str);
     write(1, "Port ", 5);
     write(1, port_str, strlen(port_str));
-    write(1, " Received, ID is ", 22);
+    write(1, " Received, ID is ", 17);
     write(1, id_str, strlen(id_str));
     write(1, "!\n", 2);
     close(sock);
@@ -205,7 +207,7 @@ int main(int argc, char const *argv[]) {
         }
     }
 
-    write(1, "\nThe end\n", 9);
+    write(1, "\nProcess Terminated\n", 20);
     close(sock);
 
     return 0;
