@@ -157,7 +157,7 @@ int main(int argc, char const *argv[]) {
     write(1, "\nWaiting for players...\n", 24);
 
     int file_fd;
-    file_fd = open("file.txt", O_APPEND | O_RDWR | O_CREAT);
+    file_fd = open("file.txt", O_APPEND | O_RDWR | O_CREAT, 0666);
 
 
     while(1) {
@@ -177,6 +177,8 @@ int main(int argc, char const *argv[]) {
                     if(buffer[0] == '$') {
                         write(file_fd, buffer, strlen(buffer));
                         write(file_fd, " \n", 2);
+                        write(1, "New question and answer appended to the file\n", 45);
+                        memset(buffer, 0, sizeof buffer);
                     } else {
                         int group = atoi(buffer);
                         if(add_user(i, group, users_list, &users_list_index))
