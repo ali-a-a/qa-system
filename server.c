@@ -110,6 +110,20 @@ void send_port(int group, waiting_list list[100], int users_list_index) {
     write(1, " sent to users\n", 15);
 }
 
+int get_fd(int group, int c_fd, int a_fd, int m_fd, int e_fd) {
+    if(group == 1) {
+        return c_fd;
+    } else if(group == 2) {
+        return a_fd;
+    } else if(group == 3) {
+        return m_fd;
+    } else if(group == 4) {
+        return e_fd;
+    } else {
+        return -1;
+    }
+}
+
 
 int main(int argc, char const *argv[]) {
     int server_fd, new_socket, valread, max_sd, port;
@@ -156,8 +170,12 @@ int main(int argc, char const *argv[]) {
     write(1, port_str, strlen(port_str));
     write(1, "\nWaiting for players...\n", 24);
 
-    int file_fd;
-    file_fd = open("file.txt", O_APPEND | O_RDWR | O_CREAT, 0666);
+    int file_fd, computer_file_fd, arch_file_fd, mech_file_fd, electric_file_fd;
+    computer_file_fd = open("computer.txt", O_APPEND | O_RDWR | O_CREAT, 0666);
+    arch_file_fd = open("architecture.txt", O_APPEND | O_RDWR | O_CREAT, 0666);
+    mech_file_fd = open("mechanic.txt", O_APPEND | O_RDWR | O_CREAT, 0666);
+    electric_file_fd = open("electric.txt",  O_APPEND | O_RDWR | O_CREAT, 0666);
+
 
 
     while(1) {
@@ -175,6 +193,8 @@ int main(int argc, char const *argv[]) {
                 } else {
                     valread = recv(i , buffer, 1024, 0);
                     if(buffer[0] == '$') {
+                        int group = buffer[1] - '0';
+                        file_fd = get_fd(group, computer_file_fd, arch_file_fd, mech_file_fd, electric_file_fd);
                         write(file_fd, buffer, strlen(buffer));
                         write(file_fd, " \n", 2);
                         write(1, "New question and answer appended to the file\n", 45);
