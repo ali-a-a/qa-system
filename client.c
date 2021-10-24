@@ -19,6 +19,7 @@ char qa[2048] = {0};
 char first_ans[100] = {0};
 char second_ans[100] = {0};
 char buffer[1024] = {0};
+char group_char[100] = {0};
 int number_of_recv = 0;
 int len_ans = 0;
 
@@ -47,10 +48,11 @@ int is_all_answered(int turn) {
     return turn == ROOM_CAP;
 }
 
-void handle_asking_question(int sock, struct sockaddr_in bc_address, int id) {
+void handle_asking_question(int sock, struct sockaddr_in bc_address, int id, int group) {
     write(1, "Ask a question\n", 15);
     read(0, buffer, 1024);
     strcat(qa, "$");
+    strcat(qa, itoa(group, group_char));
     strcat(qa, strtok(buffer, "\n"));
     strcat(buffer, "$");
     strcat(buffer, itoa(id+1, temp));
@@ -193,7 +195,7 @@ int main(int argc, char const *argv[]) {
     while(1) {
        if (id == Q_ID) {
            if(!is_sent_question_to_all) {
-                handle_asking_question(sock, bc_address, id);
+                handle_asking_question(sock, bc_address, id, group);
                 is_sent_question_to_all = 1;
            } else {
                if(handle_response(sock, server_address, id, main_port)) {
